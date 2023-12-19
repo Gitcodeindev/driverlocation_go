@@ -13,45 +13,15 @@ import (
 	"time"
 
 	"github.com/Gitcodeindev/driverlocation_go/internal/location"
-	"github.com/Gitcodeindev/driverlocation_go/services"
 	"github.com/Gitcodeindev/driverlocation_go/internal/trip"
 	"github.com/gorilla/mux"
 )
 
-type MyOfferRepo struct{
-	db *sql.DB
+type LocationService struct {
 }
 
-func (o *MyOfferRepo) Create(ctx context.Context, offer *trip.Offer) error {
-	query := `INSERT INTO offers (id, source, type, datacontenttype, time, data)
-VALUES($1, $2, $3, $4, $5, $6)`
-
-	_, err := o.db.ExecContext(ctx, query, offer.ID, offer.Source, offer.Type, offer.DataContentType, time.Now(), offer.Data)
-
-	if err != nil {
-		log.Printf("Не удалось создать предложение: %v", err)
-		return err
-	}
-
-	return nil
-}
-
-func (o *MyOfferRepo) GetByID(ctx context.Context, id int64) (*trip.Offer, error) {
-	query := `SELECT id, source, type, datacontenttype, time, data FROM offers WHERE id=$1`
-
-	row := o.db.QueryRowContext(ctx, query, id)
-	offer := &trip.Offer{}
-
-	err := row.Scan(&offer.ID, &offer.Source, &offer.Type, &offer.DataContentType, &offer.Time, &offer.Data)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	return offer, nil
+func NewLocationService(locationRepo *LocationRepository) *LocationService {
+	return &LocationService{}
 }
 
 type Location struct {
@@ -65,13 +35,13 @@ type LocationRepository struct {
 }
 
 func (repo *LocationRepository) GetLocation(id int64) (*Location, error) {
-	location := &Location{}
+	location1 := &Location{}
 	query := "SELECT * FROM locations WHERE id=$1"
-	err := repo.db.QueryRow(query, id).Scan(&location.ID, &location.Latitude, &location.Longitude)
+	err := repo.db.QueryRow(query, id).Scan(&location1.ID, &location1.Latitude, &location1.Longitude)
 	if err != nil {
 		return nil, err
 	}
-	return location, nil
+	return location1, nil
 }
 
 func (repo *LocationRepository) UpdateLocation(loc *Location) error {
@@ -83,32 +53,22 @@ func (repo *LocationRepository) UpdateLocation(loc *Location) error {
 	return nil
 }
 
-type MockNotificationService struct {
-	NotifiedTrips []int64
-}
-
-func (m *MockNotificationService) NotifyTripCreated(trip *trip.Trip) error {
-	m.NotifiedTrips = append(m.NotifiedTrips, trip.ID)
-
-	return nil
-}
-
 type yourTripRepositoryImplementation struct {
 	db *sql.DB
 }
 
 func (r *yourTripRepositoryImplementation) StartTrip(ctx context.Context, tripID int64) error {
-	trip, err := r.GetTrip(ctx, tripID)
+	trip1, err := r.GetTrip(ctx, tripID)
 	if err != nil {
 		return err
 	}
 
-	if trip.IsStarted {
+	if trip1.IsStarted {
 		return errors.New("поездка уже началась")
 	}
 
-	trip.IsStarted = true
-	err = r.UpdateTrip(ctx, trip)
+	trip1.IsStarted = true
+	err = r.UpdateTrip(ctx, trip1)
 	if err != nil {
 		return err
 	}
@@ -173,7 +133,7 @@ func (r *yourTripRepositoryImplementation) GetNewTrips(ctx context.Context, last
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
-			
+
 		}
 	}(rows)
 
@@ -244,7 +204,7 @@ func (r *yourTripRepositoryImplementation) UpdateTrip(ctx context.Context, trip 
 	return nil
 }
 
-func NewTripRepository() trip.TripRepository {
+func NewTripRepository() trip.Repository {
 	return &yourTripRepositoryImplementation{}
 }
 
@@ -259,12 +219,15 @@ func main() {
 		}
 	}(db)
 
-	offerRepo := &MyOfferRepo{db}
+	offerRepo := NewOfferRepository()
 	tripRepo := NewTripRepository()
-	notificationService := &MockNotificationService{}
-	tripService := trip.NewTripService(tripRepo, notificationService, offerRepo)
+	notificationService := &trip.MockNotificationService{}
+	tripService, err := trip.NewTripService(tripRepo, notificationService, offerRepo)
+	if err != nil {
+		log.Fatal(err)
+	}
 	locationRepo := &LocationRepository{}
-	locationService := location.NewLocationService(locationRepo)
+	Service := location.NewLocationService(locationRepo)
 
 	r := mux.NewRouter()
 
@@ -278,7 +241,7 @@ func main() {
 	driverRoutes.HandleFunc("/endTrip", endDriverTripHandler(tripService)).Methods("POST")
 	driverRoutes.HandleFunc("/acceptTrip", acceptDriverTripHandler(tripService)).Methods("POST")
 
-	r.HandleFunc("/trips", getTripsHandler(locationService)).Methods("GET")
+	r.HandleFunc("/trips", getTripsHandler(Service)).Methods("GET")
 
 	log.Println("Запуск сервера на порту:", os.Getenv("DRIVER_PORT"))
 	if err := http.ListenAndServe(":"+os.Getenv("DRIVER_PORT"), r); err != nil {
@@ -286,16 +249,24 @@ func main() {
 	}
 }
 
-func startTripHandler(tripService *trip.TripService) http.HandlerFunc {
+type OfferRepository struct {
+	db *sql.DB
+}
+
+func NewOfferRepository() *OfferRepository {
+	return &OfferRepository{}
+}
+
+func startTripHandler(tripService *trip.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
-		driverID, err := strconv.ParseInt(vars["идВодителя"], 10, 64)
+		_, err := strconv.ParseInt(vars["идВодителя"], 10, 64)
 		if err != nil {
 			http.Error(w, "Неверный ID водителя", http.StatusBadRequest)
 			return
 		}
 
-		err = tripService.StartTrip(driverID, 0)
+		err = tripService.StartTrip()
 		if err != nil {
 			http.Error(w, "Не удалось начать поездку", http.StatusInternalServerError)
 			return
@@ -310,7 +281,7 @@ func startTripHandler(tripService *trip.TripService) http.HandlerFunc {
 	}
 }
 
-func endTripHandler(tripService *trip.TripService) http.HandlerFunc {
+func endTripHandler(tripService *trip.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		tripIdStr, ok := vars["tripId"]
@@ -319,13 +290,13 @@ func endTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			return
 		}
 
-		tripId, err := strconv.ParseInt(tripIdStr, 10, 64)
+		_, err := strconv.ParseInt(tripIdStr, 10, 64)
 		if err != nil {
 			http.Error(w, "Параметр tripId должен быть числом", http.StatusBadRequest)
 			return
 		}
 
-		err = tripService.EndTrip(tripId, 0)
+		err = tripService.EndTrip()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -335,7 +306,7 @@ func endTripHandler(tripService *trip.TripService) http.HandlerFunc {
 	}
 }
 
-func acceptTripHandler(tripService *trip.TripService) http.HandlerFunc {
+func acceptTripHandler(tripService *trip.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		tripIdStr, ok := vars["tripId"]
@@ -343,8 +314,8 @@ func acceptTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			http.Error(w, "Необходим параметр tripId", http.StatusBadRequest)
 			return
 		}
-	
-		tripId, err := strconv.ParseInt(tripIdStr, 10, 64)
+
+		_, err := strconv.ParseInt(tripIdStr, 10, 64)
 		if err != nil {
 			http.Error(w, "Параметр tripId должен быть числом", http.StatusBadRequest)
 			return
@@ -360,7 +331,7 @@ func acceptTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			return
 		}
 
-		err = tripService.AcceptTrip(tripId, requestBody.DriverId)
+		err = tripService.AcceptTrip()
 		if err != nil {
 			// Если возникла ошибка, отправляем сообщение об ошибке
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -371,7 +342,7 @@ func acceptTripHandler(tripService *trip.TripService) http.HandlerFunc {
 	}
 }
 
-func startDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
+func startDriverTripHandler(tripService *trip.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		tripIdStr, ok := vars["tripId"]
@@ -380,7 +351,7 @@ func startDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			return
 		}
 
-		tripId, err := strconv.ParseInt(tripIdStr, 10, 64)
+		_, err := strconv.ParseInt(tripIdStr, 10, 64)
 		if err != nil {
 			http.Error(w, "Параметр tripId должен быть числом", http.StatusBadRequest)
 			return
@@ -396,7 +367,7 @@ func startDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			return
 		}
 
-		err = tripService.StartTrip(tripId, requestBody.DriverId)
+		err = tripService.StartTrip()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -406,7 +377,7 @@ func startDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 	}
 }
 
-func endDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
+func endDriverTripHandler(tripService *trip.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		tripIdStr, ok := vars["tripId"]
@@ -415,7 +386,7 @@ func endDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			return
 		}
 
-		tripId, err := strconv.ParseInt(tripIdStr, 10, 64)
+		_, err := strconv.ParseInt(tripIdStr, 10, 64)
 		if err != nil {
 			http.Error(w, "Параметр tripId должен быть числом", http.StatusBadRequest)
 			return
@@ -431,7 +402,7 @@ func endDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			return
 		}
 
-		err = tripService.EndTrip(tripId, requestBody.DriverId)
+		err = tripService.EndTrip()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -441,7 +412,7 @@ func endDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 	}
 }
 
-func acceptDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
+func acceptDriverTripHandler(tripService *trip.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		tripIdStr, ok := vars["tripId"]
@@ -450,7 +421,7 @@ func acceptDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			return
 		}
 
-		tripId, err := strconv.ParseInt(tripIdStr, 10, 64)
+		_, err := strconv.ParseInt(tripIdStr, 10, 64)
 		if err != nil {
 			http.Error(w, "Параметр tripId должен быть числом", http.StatusBadRequest)
 			return
@@ -466,7 +437,10 @@ func acceptDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 			return
 		}
 
-		tripService.AcceptDriverTrip(tripId, requestBody.DriverId)
+		err = tripService.AcceptDriverTrip()
+		if err != nil {
+			return
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -476,7 +450,32 @@ func acceptDriverTripHandler(tripService *trip.TripService) http.HandlerFunc {
 	}
 }
 
-func getTripsHandler(locationService *location.LocationService) http.HandlerFunc {
+func getTripsHandler(locationService *location.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Call the location service to get all trips
+		trips, err := locationService.GetAllTrips()
+
+		// If there's an error fetching the trips
+		if err != nil {
+			// Send a 500 Internal Server Error response
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Convert the trips to JSON
+		data, err := json.Marshal(trips)
+		if err != nil {
+			// Send a 500 Internal Server Error response
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Write the JSON trips data to the response
+		w.Header().Set("Content-Type", "application/json")
+		_, err = w.Write(data)
+		if err != nil {
+			// Log the error or handle it as you need
+			log.Printf("Failed to write response: %v", err)
+		}
 	}
 }

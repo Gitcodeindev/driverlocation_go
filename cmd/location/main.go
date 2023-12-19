@@ -18,12 +18,16 @@ func (repo *LocationRepositoryImpl) UpdateLocation() error {
 	return nil
 }
 
-type LocationService struct {
-	repo *LocationRepositoryImpl
+type Repo = LocationRepositoryImpl
+
+type Service struct {
+	Repo *Repo
 }
 
-func NewLocationService(repo *LocationRepositoryImpl) *LocationService {
-	return &LocationService{repo: repo}
+func NewLocationService(repo *LocationRepositoryImpl) *Service {
+	return &Service{
+		Repo: repo,
+	}
 }
 
 func main() {
@@ -43,7 +47,7 @@ func main() {
 	}
 }
 
-func locationHandler(locationService *LocationService) http.HandlerFunc {
+func locationHandler(locationService *Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -65,7 +69,7 @@ func locationHandler(locationService *LocationService) http.HandlerFunc {
 			return
 		}
 
-		if err := locationService.repo.UpdateLocation(); err != nil {
+		if err := locationService.Repo.UpdateLocation(); err != nil {
 			http.Error(w, "Не удалось обновить местоположение", http.StatusInternalServerError)
 			return
 		}

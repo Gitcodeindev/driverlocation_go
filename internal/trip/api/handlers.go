@@ -1,7 +1,7 @@
 package api
 
 import (
-	"context"
+	_ "context"
 	"net/http"
 	"strconv"
 
@@ -10,67 +10,72 @@ import (
 )
 
 type TripHandlers struct {
-	service *trip.TripService
+	service *trip.Service
 }
 
 type TripService struct {
 }
 
-func NewTripHandlers(service *trip.TripService) *TripHandlers {
-	return &TripHandlers{service: service}
-}
-
-func (s *TripService) AcceptTrip(ctx context.Context, tripID, driverID int64) error {
+func (s *TripService) AcceptTrip() error {
 	return nil
 }
 
-func (s *TripService) StartTrip(ctx context.Context, tripID int64) error {
+func (s *TripService) StartTrip() error {
 	return nil
 }
 
-func (s *TripService) EndTrip(ctx context.Context, tripID int64) error {
+func (s *TripService) EndTrip() error {
 	return nil
 }
 
 func (h *TripHandlers) AcceptTrip(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	tripID, _ := strconv.ParseInt(vars["tripId"], 10, 64)
-	driverID, _ := strconv.ParseInt(vars["driverId"], 10, 64)
+	_, _ = strconv.ParseInt(vars["tripId"], 10, 64)
+	_, _ = strconv.ParseInt(vars["driverId"], 10, 64)
 
-	err := h.service.AcceptTrip(tripID, driverID)
+	err := h.service.AcceptTrip()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Поездка принята"))
+	_, err = w.Write([]byte("Поездка принята"))
+	if err != nil {
+		return
+	}
 }
 
 func (h *TripHandlers) StartTrip(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	tripID, _ := strconv.ParseInt(vars["tripId"], 10, 64)
+	_, _ = strconv.ParseInt(vars["tripId"], 10, 64)
 
-	err := h.service.StartTrip(tripID, 0)
+	err := h.service.StartTrip()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Поездка началась"))
+	_, err = w.Write([]byte("Поездка началась"))
+	if err != nil {
+		return
+	}
 }
 
 func (h *TripHandlers) EndTrip(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	tripID, _ := strconv.ParseInt(vars["tripId"], 10, 64)
+	_, _ = strconv.ParseInt(vars["tripId"], 10, 64)
 
-	err := h.service.EndTrip(tripID, 0)
+	err := h.service.EndTrip()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Поездка завершена"))
+	_, err = w.Write([]byte("Поездка завершена"))
+	if err != nil {
+		return
+	}
 }
