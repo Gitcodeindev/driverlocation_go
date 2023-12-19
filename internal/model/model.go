@@ -2,7 +2,6 @@ package model
 
 import "time"
 
-// представляет сущность водителя в системе
 type Driver struct {
 	ID          int64     `json:"id"`
 	Name        string    `json:"name"`
@@ -14,18 +13,16 @@ type Driver struct {
 	Rating      float64   `json:"rating"`
 }
 
-// создает новый экземпляр водителя с начальными значениями
 func NewDriver(name, license string) *Driver {
-    return &Driver{
-        Name:      name,
-        License:   license,
-        Available: true,
-        CreatedAt: time.Now(),
-        UpdatedAt: time.Now(),
-    }
+	return &Driver{
+		Name:      name,
+		License:   license,
+		Available: true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
 }
 
-// обновляет данные водителя
 func (d *Driver) Update(name, license, contactInfo string, rating float64, available bool) {
 	d.Name = name
 	d.License = license
@@ -34,4 +31,3 @@ func (d *Driver) Update(name, license, contactInfo string, rating float64, avail
 	d.Rating = rating
 	d.UpdatedAt = time.Now()
 }
-

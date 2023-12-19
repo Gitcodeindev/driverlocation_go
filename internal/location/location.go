@@ -1,5 +1,7 @@
 package location
 
+import "github.com/Gitcodeindev/driverlocation_go/cmd/driver"
+
 type Location struct {
 	ID        int64   `json:"id"`
 	Latitude  float64 `json:"latitude"`
@@ -17,7 +19,7 @@ type LocationService struct {
 	Repo LocationRepository
 }
 
-func NewLocationService(repo LocationRepository) *LocationService {
+func NewLocationService(repo *main.LocationRepository) *LocationService {
 	return &LocationService{
 		Repo: repo,
 	}

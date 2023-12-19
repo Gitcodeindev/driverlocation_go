@@ -9,12 +9,10 @@ import (
 )
 
 func (ls *LocationService) GetLocation(driverID int64) (string, error) {
-	// Реализация метода
 	return "", nil
 }
 
 func (ls *LocationService) UpdateLocation(driverID int64, location string) error {
-	// Реализация метода
 	return nil
 }
 

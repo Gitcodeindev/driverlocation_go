@@ -14,7 +14,7 @@ import (
 type LocationRepositoryImpl struct {
 }
 
-func (repo *LocationRepositoryImpl) UpdateLocation(location string) error {
+func (repo *LocationRepositoryImpl) UpdateLocation() error {
 	return nil
 }
 
@@ -28,18 +28,18 @@ func NewLocationService(repo *LocationRepositoryImpl) *LocationService {
 
 func main() {
 	if err := godotenv.Load("configs/.env.dev"); err != nil {
-		log.Fatal("Error loading .env file")
+		log.Fatal("Ошибка загрузки файла .env")
 	}
 
 	locationRepo := &LocationRepositoryImpl{}
 	locationService := NewLocationService(locationRepo)
 
 	r := mux.NewRouter()
-	r.HandleFunc("/location", locationHandler(locationService)).Methods("GET")
+	r.HandleFunc("/location", locationHandler(locationService)).Methods("PUT")
 
-	log.Println("Starting Location service on port :", os.Getenv("LOCATION_PORT"))
+	log.Println("Запуск службы местоположения на порту:", os.Getenv("LOCATION_PORT"))
 	if err := http.ListenAndServe(":"+os.Getenv("LOCATION_PORT"), r); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Fatalf("Не удалось запустить сервер: %v", err)
 	}
 }
 
@@ -65,7 +65,7 @@ func locationHandler(locationService *LocationService) http.HandlerFunc {
 			return
 		}
 
-		if err := locationService.repo.UpdateLocation(newLocation); err != nil {
+		if err := locationService.repo.UpdateLocation(); err != nil {
 			http.Error(w, "Не удалось обновить местоположение", http.StatusInternalServerError)
 			return
 		}
@@ -74,6 +74,9 @@ func locationHandler(locationService *LocationService) http.HandlerFunc {
 
 		response := map[string]string{"message": "Местоположение успешно обновлено"}
 		jsonResponse, _ := json.Marshal(response)
-		w.Write(jsonResponse)
+		_, err := w.Write(jsonResponse)
+		if err != nil {
+			return
+		}
 	}
 }

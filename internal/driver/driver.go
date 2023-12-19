@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"context"
 	"errors"
 )
 
@@ -13,7 +12,7 @@ type Driver struct {
 	Location  string
 }
 
-type DriverRepository interface {
+type Repository interface {
 	Create(driver *Driver) error
 	Update(driver *Driver) error
 	GetByID(id int64) (*Driver, error)
@@ -24,32 +23,32 @@ type LocationService interface {
 	GetLocation(driverID int64) (string, error)
 }
 
-type DriverService struct {
-	driverRepo      DriverRepository
-	locationService LocationService
+type Service struct {
+	repo       Repository
+	locService LocationService
 }
 
-func (s *DriverService) RegisterDriver(ctx context.Context, driver *Driver) error {
+func (s *Service) RegisterDriver(driver *Driver) error {
 	if driver.Name == "" || driver.License == "" {
-		return errors.New("invalid driver data")
+		return errors.New("недопустимые данные водителя")
 	}
-	return s.driverRepo.Create(driver)
+	return s.repo.Create(driver)
 }
 
-func (s *DriverService) UpdateDriver(ctx context.Context, driver *Driver) error {
+func (s *Service) UpdateDriver(driver *Driver) error {
 	if driver.Name == "" || driver.License == "" {
-		return errors.New("invalid driver data")
+		return errors.New("недопустимые данные водителя")
 	}
-	return s.driverRepo.Update(driver)
+	return s.repo.Update(driver)
 }
 
-func (s *DriverService) GetDrivers(ctx context.Context) ([]*Driver, error) {
-	drivers, err := s.driverRepo.GetAll()
+func (s *Service) GetDrivers() ([]*Driver, error) {
+	drivers, err := s.repo.GetAll()
 	if err != nil {
 		return nil, err
 	}
 	for i, driver := range drivers {
-		location, err := s.locationService.GetLocation(driver.ID)
+		location, err := s.locService.GetLocation(driver.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -58,13 +57,20 @@ func (s *DriverService) GetDrivers(ctx context.Context) ([]*Driver, error) {
 	return drivers, nil
 }
 
-func (s *DriverService) StartTrip(ctx context.Context, driverID int64, tripID int64) error {
-	driver, err := s.driverRepo.GetByID(driverID)
+func (s *Service) StartTrip(driverID int64) error {
+	driver, err := s.repo.GetByID(driverID)
 	if err != nil {
 		return err
 	}
 	if !driver.Available {
-		return errors.New("driver is not available to start a trip")
+		return errors.New("водитель не доступен для начала поездки")
 	}
+
+	driver.Available = false
+
+	if err := s.repo.Update(driver); err != nil {
+		return err
+	}
+
 	return nil
 }

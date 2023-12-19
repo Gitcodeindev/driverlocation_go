@@ -1,52 +1,60 @@
 package driver
 
 import (
-	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
 )
 
-var driverService *DriverService
-
-func (ds *DriverService) GetDriver(ctx context.Context, id int64) (*Driver, error) {
-	return nil, nil
+type Handler struct {
+	service Service
 }
 
-func RegisterDriver(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) RegisterDriver(w http.ResponseWriter, r *http.Request) {
 	var driver Driver
 	err := json.NewDecoder(r.Body).Decode(&driver)
 	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-
-	err = driverService.RegisterDriver(context.Background(), &driver)
+	err = h.service.RegisterDriver(&driver)
 	if err != nil {
 		http.Error(w, "Failed to register driver", http.StatusInternalServerError)
 		return
 	}
-
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode("Driver registered")
+	err = json.NewEncoder(w).Encode("Водитель зарегистрирован")
+	if err != nil {
+		return
+	}
 }
 
-func GetDriverInfo(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UpdateDriver() {
+}
+
+func (h *Handler) GetDrivers() {
+}
+
+func (h *Handler) StartTrip(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	driverID, err := strconv.ParseInt(vars["driverId"], 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid driver ID", http.StatusBadRequest)
+		http.Error(w, "Invalid driver id", http.StatusBadRequest)
 		return
 	}
 
-	driver, err := driverService.GetDriver(context.Background(), id)
+	err = h.service.StartTrip(driverID)
 	if err != nil {
-		http.Error(w, "Failed to get driver", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to start trip: %s", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(driver)
+	err = json.NewEncoder(w).Encode("Trip started")
+	if err != nil {
+		return
+	}
 }
