@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	
+	"github.com/Gitcodeindev/driverlocation_go/services"
 )
+
+var notificationService = &services.MockNotificationService{}
 
 type Driver struct {
 }
